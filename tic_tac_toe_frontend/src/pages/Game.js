@@ -1,21 +1,49 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { apiGetGame, apiMakeMove } from "../api";
 
 // PUBLIC_INTERFACE
 function Game() {
   /** Interactive Tic Tac Toe game session page with 3x3 board, move logic, and player indicator. */
   const { gameId } = useParams();
   const [board, setBoard] = useState(Array(9).fill(null));
-  const [xIsNext, setXisNext] = useState(true);
-  const winner = calculateWinner(board);
+  const [playerSymbol, setPlayerSymbol] = useState();
+  const [statusMsg, setStatusMsg] = useState("");
+  const [winner, setWinner] = useState();
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [currentTurn, setCurrentTurn] = useState();
+  const [gameOver, setGameOver] = useState(false);
 
-  const handleSquareClick = (i) => {
-    if (board[i] || winner) return;
-    const newBoard = [...board];
-    newBoard[i] = xIsNext ? "X" : "O";
-    setBoard(newBoard);
-    setXisNext(!xIsNext);
-    // Here, API call to backend to record move & sync state should go
+  async function reloadGameState() {
+    setLoading(true);
+    setErr("");
+    try {
+      // The backend game object may have: {board: [...], current_turn: "X"/"O", winner, ...} etc.
+      const data = await apiGetGame(gameId);
+      setBoard(data.board || Array(9).fill(null));
+      setPlayerSymbol(data.your_symbol);
+      setCurrentTurn(data.current_turn);
+      setWinner(data.winner);
+      setGameOver(data.winner !== null || data.is_draw);
+      setStatusMsg(data.is_draw ? "Draw!" : (data.winner ? `Winner: ${data.winner}` : ""));
+    } catch (e) {
+      setErr("Failed to load game.");
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { reloadGameState(); /* eslint-disable-next-line */ }, [gameId]);
+
+  const handleSquareClick = async (i) => {
+    if (gameOver || board[i]) return;
+    setErr(""); setStatusMsg("");
+    try {
+      await apiMakeMove(gameId, i);
+      await reloadGameState(); // updates board and status
+    } catch (e) {
+      setErr(e.message || "Move failed.");
+    }
   };
 
   function renderSquare(i) {
@@ -29,11 +57,11 @@ function Game() {
           color: board[i] === "X" ? "var(--primary)" : "var(--secondary)",
           background: "#fff",
           fontWeight: "bold",
-          cursor: board[i] || winner ? "not-allowed" : "pointer",
+          cursor: board[i] || gameOver ? "not-allowed" : "pointer",
           transition: "background 0.2s"
         }}
         onClick={() => handleSquareClick(i)}
-        disabled={!!board[i] || !!winner}
+        disabled={!!board[i] || !!gameOver || loading}
         aria-label={`Square ${i}`}
       >
         {board[i]}
@@ -41,19 +69,27 @@ function Game() {
     );
   }
 
-  function resetGame() {
-    setBoard(Array(9).fill(null));
-    setXisNext(true);
+  function resetGameLocal() {
+    // Just reload game state (could enable restart endpoint if backend supports)
+    reloadGameState();
+    setErr(""); setStatusMsg(""); setWinner(null);
   }
 
   return (
     <div style={{maxWidth:420, margin:"30px auto", textAlign:'center'}}>
       <h2>Game #{gameId}</h2>
-      {winner ? (
-        <div style={{fontSize:20, fontWeight:"bold", color:"green", marginBottom:16}}>Winner: {winner}</div>
-      ) : (
-        <div style={{fontSize:18, marginBottom:14}}>Next: <b style={{color: xIsNext ? "var(--primary)" : "var(--secondary)"}}>{xIsNext ? "X" : "O"}</b></div>
-      )}
+      {loading ? <div>Loading...</div> :
+      <>
+      {err && <div style={{color:"red", marginBottom:10}}>{err}</div>}
+      <div style={{fontSize:16, marginBottom:10}}>
+        {playerSymbol && <b style={{marginRight:10}}>You: {playerSymbol}</b>}
+        {currentTurn && <span>Turn: <b style={{color: currentTurn === "X" ? "var(--primary)" : "var(--secondary)"}}>{currentTurn}</b></span>}
+      </div>
+      {(statusMsg || winner) ? (
+        <div style={{fontSize:20, fontWeight:"bold", color: winner ? "green" : "orange", marginBottom:16}}>
+          {statusMsg || (winner && `Winner: ${winner}`)}
+        </div>
+      ) : null}
       <div className="ttt-board" style={{
         display:"grid",
         gridTemplateColumns: "repeat(3, 70px)",
@@ -64,33 +100,20 @@ function Game() {
         {[...Array(9)].map((_, i) => renderSquare(i))}
       </div>
       <button
-        onClick={resetGame}
+        onClick={resetGameLocal}
         style={{
           background: "var(--accent)", color:"#222",
           padding: "8px 32px",
           border:"none", borderRadius: 5,
           fontWeight: 700
         }}
-      >Reset</button>
-      <div style={{marginTop:18, fontSize:15, color: "#888"}}>Moves and state should sync with backend API.</div>
+        disabled={loading}
+      >Reload</button>
+      {gameOver && <div style={{color:"#888", marginTop:8}}>Game Over</div>}
+      </>
+      }
     </div>
   );
-}
-
-/** Winner calc logic */
-function calculateWinner(squares) {
-  // Returns "X", "O", or null
-  const lines = [
-    [0,1,2],[3,4,5],[6,7,8],
-    [0,3,6],[1,4,7],[2,5,8],
-    [0,4,8],[2,4,6],
-  ];
-  for(const [a,b,c] of lines) {
-    if(squares[a] && squares[a] === squares[b] && squares[b] === squares[c]){
-      return squares[a];
-    }
-  }
-  return null;
 }
 
 export default Game;

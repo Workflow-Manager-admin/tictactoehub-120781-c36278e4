@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiRegister } from "../api";
 
 // PUBLIC_INTERFACE
 function Register() {
@@ -7,20 +8,20 @@ function Register() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState(false);
-
-  // Dummy API endpoint, replace with actual backend
-  const API_REGISTER = "/api/register"; 
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr("");
+    setLoading(true);
     try {
-      // Replace this fetch call with actual API endpoint and logic
+      await apiRegister(username, password);
       setSuccess(true);
       setTimeout(() => (window.location = "/login"), 1600);
     } catch (err) {
-      setErr("Registration failed. Try again.");
+      setErr(err.message || "Registration failed. Try again.");
     }
+    setLoading(false);
   };
 
   return (
@@ -47,8 +48,8 @@ function Register() {
         <button type="submit" style={{
           background: "var(--secondary)", color: "#fff",
           padding: "10px 0", border: "none", borderRadius: 6, width: "100%", fontWeight: 600, fontSize: 16
-        }}>
-          Register
+        }} disabled={loading}>
+          {loading ? "Registering..." : "Register"}
         </button>
         {err && <div style={{ color: "red", marginTop: 8 }}>{err}</div>}
         {success && <div style={{ color: "green", marginTop: 8 }}>Registration successful! Redirecting...</div>}

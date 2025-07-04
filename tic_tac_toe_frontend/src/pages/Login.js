@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiLogin } from "../api";
 
 // PUBLIC_INTERFACE
 function Login() {
@@ -8,20 +9,15 @@ function Login() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Dummy API endpoint, replace with actual backend
-  const API_LOGIN = "/api/login"; 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr("");
     setLoading(true);
     try {
-      // Replace this fetch call with actual API endpoint and logic
-      // Simulate success
-      localStorage.setItem("token", "dummy-token");
+      await apiLogin(username, password);
       window.location = "/lobby";
     } catch (err) {
-      setErr("Login failed. Try again.");
+      setErr(err.message || "Login failed. Try again.");
     }
     setLoading(false);
   };
